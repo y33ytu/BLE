@@ -4,8 +4,10 @@ import android.app.AlertDialog;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattService;
 import android.os.Bundle;
+import android.os.ParcelUuid;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -36,12 +38,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * 设备数据操作相关展示界面
  */
 public class DeviceControlActivity extends AppCompatActivity {
-
+    private final UUID writeUuid = UUID.fromString("0000b002-0000-1000-8000-00805f9b34fb");
     private static final String LIST_NAME = "NAME";
     private static final String LIST_UUID = "UUID";
     public static final String WRITE_CHARACTERISTI_UUID_KEY = "write_uuid_key";
@@ -123,8 +126,17 @@ public class DeviceControlActivity extends AppCompatActivity {
                 BluetoothDeviceManager.getInstance().write(mDevice, HexUtil.decodeHex(mInput.getText().toString().toCharArray()));
             }
         });
+
+        //连接设备
+        if (!BluetoothDeviceManager.getInstance().isConnected(mDevice)) {
+            BluetoothDeviceManager.getInstance().connect(mDevice);
+        }
     }
 
+    /**
+     * 设备连接状态事件回调
+     * @param event
+     */
     @Subscribe
     public void showConnectedDevice(ConnectEvent event) {
         if (event != null) {
@@ -134,6 +146,7 @@ public class DeviceControlActivity extends AppCompatActivity {
                 invalidateOptionsMenu();
                 if (event.getDeviceMirror() != null && event.getDeviceMirror().getBluetoothGatt() != null) {
                     simpleExpandableListAdapter = displayGattServices(event.getDeviceMirror().getBluetoothGatt().getServices());
+                    initWriteCharacter(event.getDeviceMirror().getBluetoothGatt().getServices());
                 }
             } else {
                 if (event.isDisconnected()) {
@@ -146,6 +159,26 @@ public class DeviceControlActivity extends AppCompatActivity {
                 clearUI();
             }
         }
+    }
+
+    /**
+     * 连上蓝牙后，初始化绑定Write 特征值
+     * @param gattServices
+     */
+    void initWriteCharacter(final List<BluetoothGattService> gattServices) {
+        for (final BluetoothGattService gattService : gattServices) {
+            // Loops through available Characteristics.
+            for (final BluetoothGattCharacteristic characteristic : gattService.getCharacteristics()) {
+
+                final int charaProp = characteristic.getProperties();
+                if ((charaProp & BluetoothGattCharacteristic.PROPERTY_WRITE) > 0 && characteristic.getUuid().toString().equals(writeUuid.toString())) {
+                    mSpCache.put(WRITE_CHARACTERISTI_UUID_KEY + mDevice.getAddress(), characteristic.getUuid().toString());
+                    ((EditText) findViewById(R.id.show_write_characteristic)).setText(characteristic.getUuid().toString());
+                    BluetoothDeviceManager.getInstance().bindChannel(mDevice, PropertyType.PROPERTY_WRITE, gattService.getUuid(), characteristic.getUuid(), null);
+                }
+            }
+        }
+
     }
 
     @Subscribe
@@ -178,6 +211,11 @@ public class DeviceControlActivity extends AppCompatActivity {
         super.onResume();
     }
 
+    /**
+     * 创建连接、断开菜单
+     * @param menu
+     * @return
+     */
     @Override
     public boolean onCreateOptionsMenu(final Menu menu) {
         getMenuInflater().inflate(R.menu.connect, menu);
@@ -188,6 +226,7 @@ public class DeviceControlActivity extends AppCompatActivity {
             DeviceMirror deviceMirror = ViseBle.getInstance().getDeviceMirror(mDevice);
             if (deviceMirror != null) {
                 simpleExpandableListAdapter = displayGattServices(deviceMirror.getBluetoothGatt().getServices());
+                initWriteCharacter(deviceMirror.getBluetoothGatt().getServices());
             }
             showDefaultInfo();
         } else {
@@ -337,7 +376,9 @@ public class DeviceControlActivity extends AppCompatActivity {
                 final int charaProp = characteristic.getProperties();
                 if ((charaProp & BluetoothGattCharacteristic.PROPERTY_WRITE) > 0) {
                     mSpCache.put(WRITE_CHARACTERISTI_UUID_KEY + mDevice.getAddress(), characteristic.getUuid().toString());
+                    Log.d("mGattCharacteristics", characteristic.getUuid().toString());
                     ((EditText) findViewById(R.id.show_write_characteristic)).setText(characteristic.getUuid().toString());
+
                     BluetoothDeviceManager.getInstance().bindChannel(mDevice, PropertyType.PROPERTY_WRITE, service.getUuid(), characteristic.getUuid(), null);
                 } else if ((charaProp & BluetoothGattCharacteristic.PROPERTY_READ) > 0) {
                     BluetoothDeviceManager.getInstance().bindChannel(mDevice, PropertyType.PROPERTY_READ, service.getUuid(), characteristic.getUuid(), null);

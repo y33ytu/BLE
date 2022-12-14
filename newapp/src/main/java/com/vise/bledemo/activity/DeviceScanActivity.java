@@ -3,6 +3,7 @@ package com.vise.bledemo.activity;
 import android.content.Intent;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
+import android.text.TextUtils;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -42,7 +43,10 @@ public class DeviceScanActivity extends AppCompatActivity {
     private ScanCallback periodScanCallback = new ScanCallback(new IScanCallback() {
         @Override
         public void onDeviceFound(final BluetoothLeDevice bluetoothLeDevice) {
+
             ViseLog.i("Founded Scan Device:" + bluetoothLeDevice);
+            if (TextUtils.isEmpty(bluetoothLeDevice.getDevice().getName()))
+                return;
             bluetoothLeDeviceStore.addDevice(bluetoothLeDevice);
             runOnUiThread(new Runnable() {
                 @Override
@@ -87,9 +91,13 @@ public class DeviceScanActivity extends AppCompatActivity {
                 //点击某个扫描到的设备进入设备详细信息界面
                 BluetoothLeDevice device = (BluetoothLeDevice) adapter.getItem(position);
                 if (device == null) return;
-                Intent intent = new Intent(DeviceScanActivity.this, DeviceDetailActivity.class);
+//                Intent intent = new Intent(DeviceScanActivity.this, DeviceDetailActivity.class);
+//                intent.putExtra(DeviceDetailActivity.EXTRA_DEVICE, device);
+//                startActivity(intent);
+                Intent intent = new Intent(DeviceScanActivity.this, DeviceControlActivity.class);
                 intent.putExtra(DeviceDetailActivity.EXTRA_DEVICE, device);
                 startActivity(intent);
+                finish();
             }
         });
     }
